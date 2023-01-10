@@ -1,5 +1,4 @@
 from typing import Tuple, Callable, Iterable, Any
-from torchtyping import TensorType
 
 from datasets import load_from_disk
 import os
@@ -10,7 +9,6 @@ import shutil
 import requests
 
 from magicarp.pipeline import Pipeline, register_datapipeline
-from magicarp.data import TextElement
 
 @register_datapipeline
 class BestPromptsPipeline(Pipeline):
@@ -44,7 +42,7 @@ class BestPromptsPipeline(Pipeline):
 					skip_first = False
 					continue
 
-				self.prompts[int(row[0])]["examples"].append(if row[4] == "left" (row[1], row[2]) else (row[2], row[1]))
+				self.prompts[int(row[0])]["examples"].append((row[1], row[2]) if row[4] == "left" else (row[2], row[1]))
 
 		self.prep : Callable[[Iterable[str], Iterable[str]], TextElement] = None
 
@@ -56,16 +54,16 @@ class BestPromptsPipeline(Pipeline):
 		bad_img_req = requests.get(bad_image_url, stream=True)
 
 		with open(f'{pair[0]}_{idx%4}.png', 'wb') as out_file:
-    		shutil.copyfileobj(good_img_req.raw, out_file)
+			shutil.copyfileobj(good_img_req.raw, out_file)
 
-    	with open(f'{pair[0]}_{(idx - idx%4)/4}.png', 'wb') as out_file:
-    		shutil.copyfileobj(bad_img_req.raw, out_file)
+		with open(f'{pair[0]}_{(idx - idx%4)/4}.png', 'wb') as out_file:
+			shutil.copyfileobj(bad_img_req.raw, out_file)
 
-    def get_img_paths(self, pair: Tuple[str, str], idx: int):
-    	if (not os.path.exists(f'{pair[0]}_{idx%4}.png')) or (not f'{pair[0]}_{(idx - idx%4)/4}.png'):
-    		self.query(pair, idx)
+	def get_img_paths(self, pair: Tuple[str, str], idx: int):
+		if (not os.path.exists(f'{pair[0]}_{idx%4}.png')) or (not f'{pair[0]}_{(idx - idx%4)/4}.png'):
+			self.query(pair, idx)
     	
-    	return (f'{pair[0]}_{idx%4}.png', f'{pair[0]}_{(idx - idx%4)/4}.png')
+		return (f'{pair[0]}_{idx%4}.png', f'{pair[0]}_{(idx - idx%4)/4}.png')
 
 
 	def __getitem__(self, index: int) -> Tuple[str, str]:

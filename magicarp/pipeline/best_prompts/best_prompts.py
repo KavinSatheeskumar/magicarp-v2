@@ -6,6 +6,9 @@ import os
 import joblib
 from torch import Tensor
 
+import shutil
+import requests
+
 from magicarp.pipeline import Pipeline, register_datapipeline
 from magicarp.data import TextElement
 

@@ -46,7 +46,24 @@ class BestPromptsPipeline(Pipeline):
 		self.prep : Callable[[Iterable[str], Iterable[str]], TextElement] = None
 
 	def query(self, pair: Tuple[str, str], idx: int):
-		pass
+		good_image_url = f'https://storage.yandexcloud.net/diffusion/{pair[0]}_{idx%4}.png'
+		bad_image_url = f'https://storage.yandexcloud.net/diffusion/{pair[0]}_{(idx - idx%4)/4}.png'
+
+		good_img_req = requests.get(good_image_url, stream=True)
+		bad_img_req = requests.get(bad_image_url, stream=True)
+
+		with open(f'{pair[0]}_{idx%4}.png', 'wb') as out_file:
+    		shutil.copyfileobj(good_img_req.raw, out_file)
+
+    	with open(f'{pair[0]}_{(idx - idx%4)/4}.png', 'wb') as out_file:
+    		shutil.copyfileobj(bad_img_req.raw, out_file)
+
+    def get_img_paths(self, pair: Tuple[str, str], idx: int):
+    	if (not os.path.exists(f'{pair[0]}_{idx%4}.png')) or (not f'{pair[0]}_{(idx - idx%4)/4}.png'):
+    		self.query(pair, idx)
+    	
+    	return (f'{pair[0]}_{idx%4}.png', f'{pair[0]}_{(idx - idx%4)/4}.png')
+
 
 	def __getitem__(self, index: int) -> Tuple[str, str]:
 		idx = idx % 16
@@ -58,7 +75,7 @@ class BestPromptsPipeline(Pipeline):
 			index += 1
 			remainder -= len(self.prompts[index]["examples"])
 
-		return self.query(self.prompts[index]["examples"][remainder], idx)
+		return self.get_img_paths(self.prompts[index]["examples"][remainder], idx)
 
 	def __len__(self) -> int:
 		sum([len(elem["examples"]) * 16 for elem in self.prompts])

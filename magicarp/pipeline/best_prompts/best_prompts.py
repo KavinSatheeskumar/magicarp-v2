@@ -50,30 +50,31 @@ class BestPromptsPipeline(Pipeline):
 	def create_preprocess_fn(self, call_feature_extractor : Callable):
 		# call_feature_extractor(img : Iterable[PIL.Image.Image], txt : Iterable[str]) -> Tuple[Something1, Something2]
 		def prep(
-            batch_prompt : Iterable[str],
-            batch_chosen : Iterable[str],
-            batch_rejected : Iterable[str]
-        ) -> Tuple[TextElement, TextElement]:
-            prompt_tok_out, chosen_pixel_vals = call_feature_extractor(batch_prompt, batch_chosen) 
-            _, rejected_pixel_vals = call_feature_extractor(batch_prompt, batch_rejected)
+			batch_prompt : Iterable[str],
+			batch_chosen : Iterable[str],
+			batch_rejected : Iterable[str]
+		) -> Tuple[TextElement, TextElement]:
+			prompt_tok_out, chosen_pixel_vals = call_feature_extractor(batch_prompt, batch_chosen) 
+			_, rejected_pixel_vals = call_feature_extractor(batch_prompt, batch_rejected)
 
-            prompt_elem = TextElement(
-                input_ids = prompt_tok_out.input_ids,
-                attention_mask = prompt_tok_out.attention_mask
-            )
-            chosen_elem = ImageElement(
-                pixel_values = chosen_pixel_vals
-            )
-            rejected_elem = ImageElement(
-                pixel_values = rejected_pixel_vals
-            )
+			prompt_elem = TextElement(
+				input_ids = prompt_tok_out.input_ids,
+				attention_mask = prompt_tok_out.attention_mask
+			)
 
-            a_elem = DataElement.concatenate([prompt_elem, prompt_elem])
-            b_elem = DataElement.concatenate([chosen_elem, rejected_elem])
+			chosen_elem = ImageElement(
+				pixel_values = chosen_pixel_vals
+			)
+			rejected_elem = ImageElement(
+				pixel_values = rejected_pixel_vals
+			)
 
-            return a_elem, b_elem
+			a_elem = DataElement.concatenate([prompt_elem, prompt_elem])
+			b_elem = DataElement.concatenate([chosen_elem, rejected_elem])
 
-        self.prep = prep
+			return a_elem, b_elem
+
+		self.prep = prep
 
 	def query(self, pair: Tuple[str, str], idx: int):
 		good_image_url = f'https://storage.yandexcloud.net/diffusion/{pair[0]}_{idx%4}.png'

@@ -3,6 +3,7 @@ from typing import Tuple, Callable, Iterable, Any
 from datasets import load_from_disk
 import os
 import joblib
+from PIL import Image
 from torch import Tensor
 
 import shutil
@@ -46,6 +47,34 @@ class BestPromptsPipeline(Pipeline):
 
 		self.prep : Callable[[Iterable[str], Iterable[str]], TextElement] = None
 
+	def create_preprocess_fn(self, call_feature_extractor : Callable):
+		# call_feature_extractor(img : Iterable[PIL.Image.Image], txt : Iterable[str]) -> Tuple[Something1, Something2]
+		def prep(
+            batch_prompt : Iterable[str],
+            batch_chosen : Iterable[str],
+            batch_rejected : Iterable[str]
+        ) -> Tuple[TextElement, TextElement]:
+            prompt_tok_out, chosen_pixel_vals = call_feature_extractor(batch_prompt, batch_chosen) 
+            _, rejected_pixel_vals = call_feature_extractor(batch_prompt, batch_rejected)
+
+            prompt_elem = TextElement(
+                input_ids = prompt_tok_out.input_ids,
+                attention_mask = prompt_tok_out.attention_mask
+            )
+            chosen_elem = ImageElement(
+                pixel_values = chosen_pixel_vals
+            )
+            rejected_elem = ImageElement(
+                pixel_values = rejected_pixel_vals
+            )
+
+            a_elem = DataElement.concatenate([prompt_elem, prompt_elem])
+            b_elem = DataElement.concatenate([chosen_elem, rejected_elem])
+
+            return a_elem, b_elem
+
+        self.prep = prep
+
 	def query(self, pair: Tuple[str, str], idx: int):
 		good_image_url = f'https://storage.yandexcloud.net/diffusion/{pair[0]}_{idx%4}.png'
 		bad_image_url = f'https://storage.yandexcloud.net/diffusion/{pair[0]}_{(idx - idx%4)/4}.png'
@@ -63,7 +92,10 @@ class BestPromptsPipeline(Pipeline):
 		if (not os.path.exists(f'{pair[0]}_{idx%4}.png')) or (not f'{pair[0]}_{(idx - idx%4)/4}.png'):
 			self.query(pair, idx)
     	
-		return (f'{pair[0]}_{idx%4}.png', f'{pair[0]}_{(idx - idx%4)/4}.png')
+		return (
+			Image.open(f'{pair[0]}_{idx%4}.png'),
+			Image.open(f'{pair[0]}_{(idx - idx%4)/4}.png')
+			)
 
 
 	def __getitem__(self, index: int) -> Tuple[str, str]:

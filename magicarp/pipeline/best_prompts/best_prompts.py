@@ -8,6 +8,7 @@ from torch import Tensor
 
 import shutil
 import requests
+import csv
 
 from magicarp.pipeline import Pipeline, register_datapipeline
 
@@ -19,9 +20,9 @@ class BestPromptsPipeline(Pipeline):
     """
 	def __init__(self, prompt_path : str, preference_path : str):
 		super().__init__()
-		self.prompts = {}
+		self.prompts = []
 
-		with open(prompts_path) as csvfile:
+		with open(prompt_path, encoding='utf-8') as csvfile:
 			spamreader = csv.reader(csvfile)
 
 			skip_first = True
@@ -33,7 +34,7 @@ class BestPromptsPipeline(Pipeline):
 
 				self.prompts.append({"prompt": row[0], "examples": []})
 
-		with open(preference_path) as csvfile:
+		with open(preference_path, encoding='utf-8') as csvfile:
 			spamreader = csv.reader(csvfile)
 
 			skip_first = True
@@ -77,41 +78,46 @@ class BestPromptsPipeline(Pipeline):
 		self.prep = prep
 
 	def query(self, pair: Tuple[str, str], idx: int):
-		good_image_url = f'https://storage.yandexcloud.net/diffusion/{pair[0]}_{idx%4}.png'
-		bad_image_url = f'https://storage.yandexcloud.net/diffusion/{pair[0]}_{(idx - idx%4)/4}.png'
+		idx_good = idx % 4
+		idx_bad = int((idx - idx % 4)/4)
+		print("wee query")
+		good_image_url = f'https://storage.yandexcloud.net/diffusion/{pair[0]}_{idx_good}.png'
+		bad_image_url = f'https://storage.yandexcloud.net/diffusion/{pair[1]}_{idx_bad }.png'
 
 		good_img_req = requests.get(good_image_url, stream=True)
 		bad_img_req = requests.get(bad_image_url, stream=True)
 
-		with open(f'{pair[0]}_{idx%4}.png', 'wb') as out_file:
+		with open(f'{pair[0]}_{idx_good}.png', 'wb') as out_file:
 			shutil.copyfileobj(good_img_req.raw, out_file)
 
-		with open(f'{pair[0]}_{(idx - idx%4)/4}.png', 'wb') as out_file:
+		with open(f'{pair[1]}_{int((idx - idx%4)/4)}.png', 'wb') as out_file:
 			shutil.copyfileobj(bad_img_req.raw, out_file)
 
 	def get_img_paths(self, pair: Tuple[str, str], idx: int):
-		if (not os.path.exists(f'{pair[0]}_{idx%4}.png')) or (not f'{pair[0]}_{(idx - idx%4)/4}.png'):
+		idx_good = idx % 4
+		idx_bad = int((idx - idx % 4)/4)
+		if (not os.path.exists(f'{pair[0]}_{idx_good}.png')) or (not os.path.exists(f'{pair[1]}_{idx_bad }.png')):
 			self.query(pair, idx)
     	
 		return (
-			Image.open(f'{pair[0]}_{idx%4}.png'),
-			Image.open(f'{pair[0]}_{(idx - idx%4)/4}.png')
+			Image.open(f'{pair[0]}_{idx_good}.png'),
+			Image.open(f'{pair[1]}_{idx_bad}.png')
 			)
 
 
 	def __getitem__(self, index: int) -> Tuple[str, str]:
-		idx = idx % 16
-		remainder = (index - query) / 16
+		idx = index % 16
+		remainder = int((index - idx) / 16)
 
-		index = 0
+		i = 0
 
-		while remainder >= len(self.prompts[index]["examples"]):
+		while remainder >= len(self.prompts[i]["examples"]):
 			index += 1
-			remainder -= len(self.prompts[index]["examples"])
+			remainder -= len(self.prompts[i]["examples"])
 
-		return self.get_img_paths(self.prompts[index]["examples"][remainder], idx)
+		return self.get_img_paths(self.prompts[i]["examples"][remainder], idx)
 
 	def __len__(self) -> int:
-		sum([len(elem["examples"]) * 16 for elem in self.prompts])
+		return sum([len(elem["examples"]) * 16 for elem in self.prompts])
         
 
